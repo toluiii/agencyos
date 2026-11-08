@@ -1,11 +1,12 @@
-import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { S3Client, GetObjectCommand, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Resend } from 'resend';
 import Stripe from 'stripe';
 import OpenAI from 'openai';
-import { promises as fs } from 'fs';
+import { createReadStream, promises as fs } from 'fs';
+import { Readable } from 'stream';
 import { isAbsolute, join, relative, resolve, sep } from 'path';
 import { randomUUID } from 'crypto';
 
@@ -73,6 +74,26 @@ export class IntegrationsService {
     }
     const path = this.localPath(key);
     return fs.readFile(path);
+  }
+  /**
+   * Opens a stored file as a stream so downloads are piped to the client instead of being
+   * loaded fully into memory (uploads can be tens of MB and run in small serverless instances).
+   */
+  async openFileStream(key: string): Promise<{ stream: Readable; size?: number }> {
+    if (this.s3) {
+      try {
+        const res = await this.s3.send(new GetObjectCommand({ Bucket: this.config.getOrThrow('S3_BUCKET'), Key: key }));
+        if (!res.Body) throw new NotFoundException('File not found');
+        return { stream: res.Body as Readable, size: res.ContentLength };
+      } catch (e) {
+        const name = (e as { name?: string })?.name;
+        if (name === 'NoSuchKey' || name === 'NotFound') throw new NotFoundException('File not found');
+        throw e;
+      }
+    }
+    const path = this.localPath(key);
+    const stat = await fs.stat(path).catch((e: NodeJS.ErrnoException) => { if (e.code === 'ENOENT') throw new NotFoundException('File not found'); throw e; });
+    return { stream: createReadStream(path), size: stat.size };
   }
   async deleteFile(key: string) {
     if (this.s3) { await this.s3.send(new DeleteObjectCommand({ Bucket: this.config.getOrThrow('S3_BUCKET'), Key: key })); return; }

@@ -25,6 +25,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { AiModule } from './ai/ai.module';
 import { AdminModule } from './admin/admin.module';
 import { HealthModule } from './health/health.module';
+import { MaintenanceModule } from './maintenance/maintenance.module';
 import { IntegrationsController } from './integrations/integrations.controller';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { CsrfGuard } from './common/guards/csrf.guard';
@@ -37,7 +38,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 240 }]),
     ScheduleModule.forRoot(),
     JwtModule.register({}),
-    PrismaModule, IntegrationsModule, AuditModule, AuthModule, UsersModule, OrganizationsModule, MembershipsModule, ClientsModule, ProjectsModule, TasksModule, MilestonesModule, CommentsModule, DocumentsModule, SupportModule, BillingModule, NotificationsModule, AnalyticsModule, AiModule, AdminModule, HealthModule,
+    PrismaModule, IntegrationsModule, AuditModule, AuthModule, UsersModule, OrganizationsModule, MembershipsModule, ClientsModule, ProjectsModule, TasksModule, MilestonesModule, CommentsModule, DocumentsModule, SupportModule, BillingModule, NotificationsModule, AnalyticsModule, AiModule, AdminModule, HealthModule, MaintenanceModule,
   ],
   controllers: [IntegrationsController],
 

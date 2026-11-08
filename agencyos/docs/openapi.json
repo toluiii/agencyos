@@ -622,10 +622,16 @@
           },
           {
             "name": "status",
-            "required": true,
+            "required": false,
             "in": "query",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "enum": [
+                "LEAD",
+                "ONBOARDING",
+                "ACTIVE",
+                "ARCHIVED"
+              ]
             }
           }
         ],
@@ -941,15 +947,22 @@
           },
           {
             "name": "status",
-            "required": true,
+            "required": false,
             "in": "query",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "enum": [
+                "PLANNED",
+                "ACTIVE",
+                "ON_HOLD",
+                "COMPLETED",
+                "ARCHIVED"
+              ]
             }
           },
           {
             "name": "clientId",
-            "required": true,
+            "required": false,
             "in": "query",
             "schema": {
               "type": "string"
@@ -1204,7 +1217,7 @@
           },
           {
             "name": "projectId",
-            "required": true,
+            "required": false,
             "in": "query",
             "schema": {
               "type": "string"
@@ -1212,15 +1225,22 @@
           },
           {
             "name": "status",
-            "required": true,
+            "required": false,
             "in": "query",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "enum": [
+                "BACKLOG",
+                "TODO",
+                "IN_PROGRESS",
+                "REVIEW",
+                "DONE"
+              ]
             }
           },
           {
             "name": "assigneeId",
-            "required": true,
+            "required": false,
             "in": "query",
             "schema": {
               "type": "string"
@@ -1228,10 +1248,14 @@
           },
           {
             "name": "overdue",
-            "required": true,
+            "required": false,
             "in": "query",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
             }
           }
         ],
@@ -1547,6 +1571,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMilestoneDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -1830,10 +1864,17 @@
           },
           {
             "name": "status",
-            "required": true,
+            "required": false,
             "in": "query",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "enum": [
+                "OPEN",
+                "IN_PROGRESS",
+                "WAITING_CLIENT",
+                "RESOLVED",
+                "CLOSED"
+              ]
             }
           }
         ],
@@ -1983,15 +2024,22 @@
           },
           {
             "name": "status",
-            "required": true,
+            "required": false,
             "in": "query",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "enum": [
+                "DRAFT",
+                "SENT",
+                "PAID",
+                "VOID",
+                "OVERDUE"
+              ]
             }
           },
           {
             "name": "clientId",
-            "required": true,
+            "required": false,
             "in": "query",
             "schema": {
               "type": "string"
@@ -2842,13 +2890,32 @@
           "name"
         ]
       },
+      "OnboardingStepDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "done": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "done"
+        ]
+      },
       "OnboardingDto": {
         "type": "object",
         "properties": {
           "steps": {
             "type": "array",
             "items": {
-              "type": "object"
+              "$ref": "#/components/schemas/OnboardingStepDto"
             }
           }
         },
@@ -3081,6 +3148,10 @@
         ]
       },
       "MilestoneDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateMilestoneDto": {
         "type": "object",
         "properties": {}
       },

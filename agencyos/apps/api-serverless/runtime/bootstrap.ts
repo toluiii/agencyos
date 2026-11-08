@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from '../src/app.module';
 import { NotificationService } from '../src/notifications/notifications.service';
+import { MaintenanceService } from '../src/maintenance/maintenance.service';
 import { safeEqual } from '../src/common/utils/security';
 
 /**
@@ -23,10 +24,14 @@ import { safeEqual } from '../src/common/utils/security';
  *  4. local file storage falls back to /tmp and is reported as ephemeral.
  */
 
+// Pinned to an exact version with Subresource Integrity so a compromised or re-published CDN
+// file cannot run script on the API origin. To upgrade: change the version and recompute both
+// hashes with `openssl dgst -sha384 -binary node_modules/swagger-ui-dist/<file> | base64`.
+const SWAGGER_UI = 'https://unpkg.com/swagger-ui-dist@5.34.1';
 const DOCS_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8">
-<title>AgencyOS API</title><link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+<title>AgencyOS API</title><link rel="stylesheet" href="${SWAGGER_UI}/swagger-ui.css" integrity="sha384-4c3vsE5f+trhFyHrFrLM1fFGUn531NIaC7dcqEWIJdoRQJ5CkJbSuSCwXLpaS1KF" crossorigin="anonymous" referrerpolicy="no-referrer">
 <style>body{margin:0}</style></head><body><div id="swagger"></div>
-<script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js" crossorigin></script>
+<script src="${SWAGGER_UI}/swagger-ui-bundle.js" integrity="sha384-XFYN47VzPiDY6qPtxYKg0nqUeW/upo20xf1j2SUE7gT/i35FJB4cuS/71Iegzk8Z" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>window.onload=()=>SwaggerUIBundle({url:'/api/docs-json',dom_id:'#swagger',deepLinking:true,persistAuthorization:false});</script>
 </body></html>`;
 
@@ -69,7 +74,9 @@ export async function createApp(): Promise<Express> {
     const auth = req.headers.authorization;
     if (typeof auth !== 'string' || !safeEqual(auth, `Bearer ${secret}`)) { res.status(401).json({ code: 'UNAUTHORIZED', message: 'Invalid cron credentials.' }); return; }
     try {
-      res.json(await app.get(NotificationService).deadlineReminders());
+      const reminders = await app.get(NotificationService).deadlineReminders();
+      const retention = await app.get(MaintenanceService).purgeExpiredRecords();
+      res.json({ ...reminders, retention });
     } catch (error) {
       Logger.error(error instanceof Error ? error.message : String(error), 'Cron');
       res.status(500).json({ code: 'CRON_FAILED', message: 'Reminder job failed.' });

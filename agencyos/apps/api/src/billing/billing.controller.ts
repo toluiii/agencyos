@@ -20,7 +20,7 @@ export class BillingController {
   @ApiBearerAuth() @UseGuards(OrgGuard, RolesGuard) @Roles('OWNER', 'MANAGER') @Post('invoices/:id/send') send(@Scope() s: TenantScope, @Param('id') id: string) { return this.service.send(s, id); }
   @ApiBearerAuth() @UseGuards(OrgGuard, RolesGuard) @Roles('OWNER', 'MANAGER') @Post('invoices/:id/void') void(@Scope() s: TenantScope, @Param('id') id: string) { return this.service.void(s, id); }
   @ApiBearerAuth() @UseGuards(OrgGuard, RolesGuard) @Post('invoices/:id/checkout') checkout(@Scope() s: TenantScope, @Param('id') id: string) { return this.service.createCheckout(s, id); }
-  @ApiBearerAuth() @UseGuards(OrgGuard, RolesGuard) @Get('subscription') subscription(@Scope() s: TenantScope) { return this.service.subscription(s); }
+  @ApiBearerAuth() @UseGuards(OrgGuard, RolesGuard) @Roles('OWNER', 'MANAGER', 'DEVELOPER') @Get('subscription') subscription(@Scope() s: TenantScope) { return this.service.subscription(s); }
   @ApiBearerAuth() @UseGuards(OrgGuard, RolesGuard) @Roles('OWNER') @Post('subscription/checkout') subCheckout(@Scope() s: TenantScope) { return this.service.createSubscriptionCheckout(s); }
   @Public() @SkipThrottle() @Post('webhooks/stripe') webhook(@Headers('stripe-signature') signature: string | undefined, @Req() req: Request) { return this.service.handleStripeWebhook(signature, (req as any).rawBody); }
 }

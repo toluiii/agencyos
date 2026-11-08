@@ -1,7 +1,8 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Post, Query, Res, UploadedFile, UseGuards, UseInterceptors, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, Body, Logger, Controller, Delete, Get, Param, Post, Query, Res, UploadedFile, UseGuards, UseInterceptors, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
+import { pipeline } from 'stream/promises';
 import { OrgGuard } from '../common/guards/org.guard';
 import { Scope, TenantScope } from '../common/decorators/scope.decorator';
 import { PrismaService } from '../prisma/prisma.service';
@@ -12,6 +13,7 @@ const MAX_BYTES = 10 * 1024 * 1024;
 const ALLOWED = new Set(['application/pdf', 'image/png', 'image/jpeg', 'image/webp', 'text/plain', 'text/csv', 'application/zip', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/msword', 'application/vnd.ms-excel']);
 @ApiTags('Documents') @ApiBearerAuth() @Controller('documents') @UseGuards(OrgGuard)
 export class DocumentsController {
+  private readonly logger = new Logger(DocumentsController.name);
   constructor(private prisma: PrismaService, private storage: IntegrationsService, private audit: AuditService, private projects: ProjectsService) {}
   @Get() async list(@Scope() s: TenantScope, @Query('projectId') projectId?: string, @Query('clientId') clientId?: string) {
     if (projectId) await this.projects.assertAccess(s, projectId);
@@ -37,8 +39,17 @@ export class DocumentsController {
   }
   @Get(':id/download') async download(@Scope() s: TenantScope, @Param('id') id: string, @Res() res: Response) {
     const doc = await this.findOne(s, id);
-    const buffer = await this.storage.getFile(doc.storageKey);
-    res.attachment(doc.name); res.setHeader('Content-Type', doc.mimeType); res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Content-Length', buffer.length); res.send(buffer);
+    const { stream, size } = await this.storage.openFileStream(doc.storageKey);
+    res.attachment(doc.name); res.setHeader('Content-Type', doc.mimeType); res.setHeader('X-Content-Type-Options', 'nosniff');
+    if (size !== undefined) res.setHeader('Content-Length', size);
+    try {
+      await pipeline(stream, res);
+    } catch (e) {
+      // Headers are already on the wire, so the only option left is to abort the response.
+      // A client closing the tab mid-download is normal and not worth a warning.
+      if ((e as NodeJS.ErrnoException).code !== 'ERR_STREAM_PREMATURE_CLOSE') this.logger.warn(`Download of document ${doc.id} aborted: ${(e as Error).message}`);
+      if (!res.headersSent) res.status(500).end(); else res.destroy();
+    }
   }
   @Delete(':id') async remove(@Scope() s: TenantScope, @Param('id') id: string) {
     const doc = await this.findOne(s, id);

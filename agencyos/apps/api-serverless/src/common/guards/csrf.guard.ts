@@ -1,6 +1,6 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { safeEqual } from '../utils/security';
+import { isExplicitDevelopmentEnv, safeEqual } from '../utils/security';
 
 @Injectable()
 export class CsrfGuard implements CanActivate {
@@ -12,7 +12,7 @@ export class CsrfGuard implements CanActivate {
     // Public auth endpoints can set cookies even before a refresh cookie exists. Reject
     // foreign browser origins there too (login CSRF), while allowing origin-less API clients.
     const authRoute = /^\/api\/v1\/auth\//.test(req.originalUrl?.split('?')[0] ?? req.url ?? '');
-    if ((authRoute || req.authMethod === 'cookie' || req.cookies?.agencyos_refresh) && origin && !isAllowedOrigin(origin, this.config.getOrThrow<string>('WEB_URL'), process.env.NODE_ENV === 'production')) throw new ForbiddenException('Cross-origin request rejected');
+    if ((authRoute || req.authMethod === 'cookie' || req.cookies?.agencyos_refresh) && origin && !isAllowedOrigin(origin, this.config.getOrThrow<string>('WEB_URL'), !isExplicitDevelopmentEnv())) throw new ForbiddenException('Cross-origin request rejected');
     if (req.authMethod !== 'cookie' && !req.cookies?.agencyos_refresh) return true;
     const cookie = req.cookies?.agencyos_csrf;
     const header = req.headers['x-csrf-token'];

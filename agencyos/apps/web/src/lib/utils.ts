@@ -18,3 +18,17 @@ export function safeExternalUrl(value: string | null | undefined): string | null
     return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
   } catch { return null; }
 }
+
+/** Formats per-currency totals ("$1,200.00 + €300.00"); amounts in different currencies are never summed. */
+export function formatMoneyTotals(totals: { currency: string; amount: number }[] | undefined, fallback = 0) {
+  if (!totals) return formatMoney(fallback);
+  if (!totals.length) return formatMoney(0);
+  return totals.map((t) => formatMoney(t.amount, t.currency)).join(' + ');
+}
+
+/** Sums amounts per currency, e.g. a list of invoices → [{ currency: 'USD', amount: 1200 }]. */
+export function totalsByCurrency(items: { currency: string; total: string | number }[]) {
+  const sums = new Map<string, number>();
+  for (const i of items) sums.set(i.currency, (sums.get(i.currency) ?? 0) + Number(i.total));
+  return Array.from(sums, ([currency, amount]) => ({ currency, amount: Math.round(amount * 100) / 100 }));
+}

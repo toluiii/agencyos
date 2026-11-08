@@ -2,9 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master, main]
   pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -21,6 +24,12 @@ env:
   NEXT_PUBLIC_API_URL: /api/v1
   NEXT_PUBLIC_DEMO_MODE: 'true'
   COOKIE_SECURE: 'false'
+
+# The application lives in ./agencyos; this workflow file has to sit at the repository root
+# for GitHub to pick it up.
+defaults:
+  run:
+    working-directory: agencyos
 
 jobs:
   verify:
@@ -45,6 +54,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
+          cache-dependency-path: agencyos/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -97,6 +107,6 @@ jobs:
         with:
           name: playwright-report
           path: |
-            playwright-report
-            test-results
+            agencyos/playwright-report
+            agencyos/test-results
           retention-days: 7

@@ -151,7 +151,11 @@ describe('AgencyOS API integration workflows', () => {
     const resetToken = new URL(forgot.body.developmentResetUrl).searchParams.get('token')!;
     await api(app).post('/api/v1/auth/reset-password').send({ token: resetToken, password: 'NewPassword123!' }).expect(200);
     await api(app).post('/api/v1/auth/reset-password').send({ token: resetToken, password: 'Another123!' }).expect(400);
-    await api(app).post('/api/v1/auth/login').send({ email: `user-${suffix}-a@test.dev`, password: 'NewPassword123!' }).expect(200);
+    // A password reset revokes every session, including access tokens issued before it.
+    await api(app).get('/api/v1/auth/me').set(auth(owner.token)).expect(401);
+    const relogin = await api(app).post('/api/v1/auth/login').send({ email: `user-${suffix}-a@test.dev`, password: 'NewPassword123!' }).expect(200);
+    owner.token = relogin.body.accessToken;
+    await api(app).get('/api/v1/auth/me').set(auth(owner.token)).expect(200);
   });
 
   it('reports integration availability honestly and never fabricates AI output', async () => {

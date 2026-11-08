@@ -14,7 +14,8 @@ export class OrganizationsController {
   constructor(private prisma: PrismaService, private audit: AuditService) {}
   @Get() async list(@CurrentUser() user: AuthUser) {
     const memberships = await this.prisma.membership.findMany({ where: { userId: user.id }, include: { organization: { include: { subscription: true, _count: { select: { clients: true, projects: true, memberships: true } } } } }, orderBy: { createdAt: 'asc' } });
-    return { data: memberships.map((m) => ({ ...m.organization, role: m.role, clientId: m.clientId })) };
+    // Client portal users see which agency they belong to, not its plan, seats or volumes.
+    return { data: memberships.map((m) => { const { subscription, _count, ...org } = m.organization; return { ...org, ...(m.role === 'CLIENT' ? {} : { subscription, _count }), role: m.role, clientId: m.clientId }; }) };
   }
   @Post() async create(@CurrentUser() user: AuthUser, @Body() dto: CreateOrganizationDto) {
     let slug = slugify(dto.name); let n = 1;
@@ -23,7 +24,10 @@ export class OrganizationsController {
     await this.audit.record({ organizationId: org.id, actorId: user.id, action: 'organization.created', entityType: 'Organization', entityId: org.id });
     return org;
   }
-  @Get(':orgId') @UseGuards(OrgGuard) get(@Param('orgId') orgId: string) { return this.prisma.organization.findUniqueOrThrow({ where: { id: orgId }, include: { subscription: true, _count: { select: { clients: true, projects: true, memberships: true, invoices: true } } } }); }
+  @Get(':orgId') @UseGuards(OrgGuard) get(@Param('orgId') orgId: string, @Scope() scope: TenantScope) {
+    if (scope.role === 'CLIENT') return this.prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { id: true, name: true, slug: true, description: true } });
+    return this.prisma.organization.findUniqueOrThrow({ where: { id: orgId }, include: { subscription: true, _count: { select: { clients: true, projects: true, memberships: true, invoices: true } } } });
+  }
   @Patch(':orgId') @UseGuards(OrgGuard, RolesGuard) @Roles('OWNER') async update(@Scope() scope: TenantScope, @Body() dto: UpdateOrganizationDto) {
     const org = await this.prisma.organization.update({ where: { id: scope.organizationId }, data: dto });
     await this.audit.record({ organizationId: org.id, actorId: scope.userId, action: 'organization.updated', entityType: 'Organization', entityId: org.id });

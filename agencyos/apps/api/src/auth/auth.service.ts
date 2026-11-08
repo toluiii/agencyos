@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, UnauthorizedExcepti
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
-import { randomToken, sha256, slugify } from '../common/utils/security';
+import { isExplicitDevelopmentEnv, randomToken, sha256, slugify } from '../common/utils/security';
 import { randomUUID } from 'crypto';
 import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
@@ -49,7 +49,9 @@ export class AuthService {
     const sessionId = randomUUID();
     const refresh = await this.jwt.signAsync({ sub: userId, sid: sessionId, family: familyId, type: 'refresh' }, { secret: this.config.getOrThrow('JWT_REFRESH_SECRET'), expiresIn: this.refreshTtl() });
     await db.refreshSession.create({ data: { id: sessionId, userId, familyId, tokenHash: sha256(refresh), expiresAt: new Date(Date.now() + this.refreshTtl() * 1000) } });
-    const access = await this.jwt.signAsync({ sub: userId, type: 'access' }, { secret: this.config.getOrThrow('JWT_ACCESS_SECRET'), expiresIn: this.accessTtl() });
+    // The access token carries its session family so it dies with the session (logout, password
+    // change/reset, deactivation, refresh-token reuse) instead of living until it expires.
+    const access = await this.jwt.signAsync({ sub: userId, family: familyId, type: 'access' }, { secret: this.config.getOrThrow('JWT_ACCESS_SECRET'), expiresIn: this.accessTtl() });
     const { isActive: _isActive, ...safeUser } = user;
     return { user: safeUser, accessToken: access, refreshToken: refresh, csrfToken: randomToken(24), expiresIn: this.accessTtl() };
   }
@@ -98,7 +100,7 @@ export class AuthService {
     const sent = await this.integrations.sendEmail(user.email, 'Reset your AgencyOS password', `<p>Reset your password within one hour:</p><p><a href="${url}">${url}</a></p>`);
     await this.audit.record({ actorId: user.id, action: 'auth.password_reset_requested', entityType: 'User', entityId: user.id });
     // Never disclose account existence or delivery outcome in production.
-    if (this.config.get('NODE_ENV') === 'production') return generic;
+    if (this.config.get('NODE_ENV') === 'production' || !isExplicitDevelopmentEnv()) return generic;
     // Development convenience only; never returned in production.
     if (!sent) return { ...generic, developmentResetUrl: url, emailDelivered: false };
     return generic;

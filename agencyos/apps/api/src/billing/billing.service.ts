@@ -50,6 +50,30 @@ export class BillingService {
       }
     }
   }
+  /**
+   * An invoice's Stripe Checkout session stays payable for 24 hours. Before the invoice changes
+   * (edit/void) the open session is expired so the customer cannot pay a stale amount; if the
+   * customer already completed it, the change is refused until the webhook marks it paid.
+   */
+  private async releaseCheckout(invoice: { id: string; stripeSessionId: string | null }) {
+    if (!invoice.stripeSessionId) return;
+    const session = await this.retrieveCheckout(invoice.stripeSessionId);
+    if (session?.status === 'complete') throw new BadRequestException('A payment for this invoice was just completed; wait for it to be confirmed');
+    if (session?.status === 'open') {
+      try { await this.integrations.getStripe().checkout.sessions.expire(session.id); } catch (error) {
+        this.logger.error(JSON.stringify({ event: 'stripe.checkout_expire_failed', invoiceId: invoice.id, error: error instanceof Error ? error.message : String(error) }));
+        throw new ServiceUnavailableException({ statusCode: 503, code: 'STRIPE_UNAVAILABLE', message: 'Could not cancel the open payment session. Try again.' });
+      }
+    }
+    await this.prisma.invoice.update({ where: { id: invoice.id }, data: { stripeSessionId: null } });
+  }
+  private async retrieveCheckout(sessionId: string): Promise<Stripe.Checkout.Session | null> {
+    if (!this.config.get<string>('STRIPE_SECRET_KEY')) return null; // Stripe is no longer configured: nothing can be paid or expired.
+    try { return await this.integrations.getStripe().checkout.sessions.retrieve(sessionId); } catch (error) {
+      if ((error as { code?: string })?.code === 'resource_missing') return null;
+      throw new ServiceUnavailableException({ statusCode: 503, code: 'STRIPE_UNAVAILABLE', message: 'Could not check the open payment session. Try again.' });
+    }
+  }
   async update(s: TenantScope, id: string, dto: UpdateInvoiceDto) {
     const existing = await this.get(s, id);
     if (existing.status === 'PAID') throw new BadRequestException('Paid invoices are immutable');
@@ -61,6 +85,7 @@ export class BillingService {
       if (!project) throw new BadRequestException('Project not found for this client');
     }
     const calc = calculateInvoice(dto.items, dto.taxRate ?? 0);
+    await this.releaseCheckout(existing);
     const invoice = await this.prisma.$transaction(async (tx) => {
       await tx.invoiceItem.deleteMany({ where: { invoiceId: id } });
       return tx.invoice.update({ where: { id }, data: { clientId: dto.clientId, projectId: dto.projectId, dueDate: new Date(dto.dueDate), currency: (dto.currency ?? existing.currency).toUpperCase(), subtotal: calc.subtotal, taxRate: dto.taxRate ?? 0, taxAmount: calc.taxAmount, total: calc.total, notes: dto.notes, status: dto.status ?? existing.status, items: { create: calc.lines.map((l, i) => ({ description: dto.items[i].description, quantity: l.quantity, unitPrice: l.unitPrice, amount: l.amount })) } }, include: { items: true } });
@@ -79,6 +104,7 @@ export class BillingService {
   }
   async void(s: TenantScope, id: string) {
     const inv = await this.get(s, id); if (inv.status === 'PAID') throw new BadRequestException('Paid invoices cannot be voided');
+    await this.releaseCheckout(inv);
     const updated = await this.prisma.invoice.update({ where: { id }, data: { status: 'VOID' } });
     await this.audit.record({ organizationId: s.organizationId, actorId: s.userId, action: 'invoice.voided', entityType: 'Invoice', entityId: id });
     return updated;
@@ -88,6 +114,12 @@ export class BillingService {
     if (!['SENT', 'OVERDUE'].includes(invoice.status)) throw new BadRequestException('Only sent or overdue invoices can be paid');
     if (invoice.payments.some((p) => p.status === 'SUCCEEDED')) throw new BadRequestException('Invoice already paid');
     const stripe = this.integrations.getStripe();
+    // Reuse a still-open session instead of creating a second payable one (double payment).
+    if (invoice.stripeSessionId) {
+      const current = await this.retrieveCheckout(invoice.stripeSessionId);
+      if (current?.status === 'complete') throw new BadRequestException('A payment for this invoice was just completed; wait for it to be confirmed');
+      if (current?.status === 'open' && current.url) return { checkoutUrl: current.url, sessionId: current.id };
+    }
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       line_items: [{ price_data: { currency: invoice.currency.toLowerCase(), unit_amount: toMinorUnits(invoice.total.toString(), invoice.currency), product_data: { name: `Invoice ${invoice.number}` } }, quantity: 1 }],
@@ -174,6 +206,9 @@ export class BillingService {
   async outstanding(s: TenantScope) {
     const invoices = await this.prisma.invoice.findMany({ where: { organizationId: s.organizationId, status: { in: ['SENT', 'OVERDUE'] } }, include: { client: { select: { name: true } } }, orderBy: { dueDate: 'asc' } });
     const total = invoices.reduce((sum, i) => sum + Number(i.total), 0);
-    return { count: invoices.length, total: Math.round(total * 100) / 100, invoices };
+    const byCurrency = new Map<string, number>();
+    for (const i of invoices) byCurrency.set(i.currency, (byCurrency.get(i.currency) ?? 0) + Number(i.total));
+    // `total` mixes currencies and is kept only for compatibility; use `totals` instead.
+    return { count: invoices.length, total: Math.round(total * 100) / 100, totals: Array.from(byCurrency, ([currency, amount]) => ({ currency, amount: Math.round(amount * 100) / 100 })), invoices };
   }
 }

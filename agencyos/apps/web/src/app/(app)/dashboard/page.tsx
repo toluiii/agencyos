@@ -17,7 +17,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
-import { formatDate, formatMoney, titleCase } from '@/lib/utils';
+import { formatDate, formatMoney, formatMoneyTotals, titleCase } from '@/lib/utils';
 
 export default function DashboardPage() {
   const { org, isClient } = useAuth();
@@ -78,15 +78,15 @@ export default function DashboardPage() {
     ? [
         { label: 'Active projects', value: k.activeProjects, hint: `${k.totalProjects} total`, href: '/projects' },
         { label: 'Completion', value: `${k.completionRate}%`, hint: 'Tasks completed' },
-        { label: 'Outstanding', value: formatMoney(k.outstanding), hint: 'Unpaid invoices', href: '/billing', attention: k.outstanding > 0 },
+        { label: 'Outstanding', value: formatMoneyTotals(k.outstandingByCurrency, k.outstanding), hint: 'Unpaid invoices', href: '/billing', attention: k.outstanding > 0 },
         { label: 'Open tickets', value: k.openTickets, hint: 'Awaiting a reply', href: '/support' },
       ]
     : [
         { label: 'Active projects', value: k.activeProjects, hint: `${k.totalProjects} total`, href: '/projects' },
         { label: 'Completion', value: `${k.completionRate}%`, hint: 'Tasks completed' },
         { label: 'Overdue tasks', value: k.overdueTasks, hint: k.overdueTasks ? 'Past their due date' : 'Nothing late', href: '/tasks', attention: k.overdueTasks > 0 },
-        { label: 'Revenue · 6 mo', value: formatMoney(k.revenue), hint: 'Succeeded payments' },
-        { label: 'Outstanding', value: formatMoney(k.outstanding), hint: 'Unpaid invoices', href: '/billing', attention: k.overdueTasks === 0 && k.outstanding > 0 },
+        { label: 'Revenue · 6 mo', value: formatMoneyTotals(k.revenueByCurrency, k.revenue), hint: 'Succeeded payments' },
+        { label: 'Outstanding', value: formatMoneyTotals(k.outstandingByCurrency, k.outstanding), hint: 'Unpaid invoices', href: '/billing', attention: k.overdueTasks === 0 && k.outstanding > 0 },
         { label: 'Open tickets', value: k.openTickets, hint: 'Awaiting a reply', href: '/support' },
       ];
 
@@ -259,7 +259,7 @@ export default function DashboardPage() {
               <dl className="divide-y divide-border text-sm">
                 {[
                   ['Projects', k.totalProjects],
-                  ['Outstanding', formatMoney(k.outstanding)],
+                  ['Outstanding', formatMoneyTotals(k.outstandingByCurrency, k.outstanding)],
                   ['Open tickets', k.openTickets],
                 ].map(([label, value]) => (
                   <div key={String(label)} className="flex items-center justify-between py-2.5">

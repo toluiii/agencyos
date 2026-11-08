@@ -146,7 +146,7 @@ apps/web      Next.js App Router: (app) group, auth pages, UI primitives, query 
 e2e           Playwright specs (agency workflow, client portal, auth + billing)
 docs          Architecture, API, testing, deployment, roadmap, diagrams, screenshots, dossier
 docker        Container entrypoint (migrate deploy, optional seed, then node)
-.github       CI + Docker workflows, issue/PR templates, Dependabot
+../.github    CI + Docker workflows, issue/PR templates, Dependabot (repository root)
 ```
 
 ## 7. Documentation
