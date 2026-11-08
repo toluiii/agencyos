@@ -4,7 +4,7 @@ test('registration creates a workspace and unconfigured AI is explicit', async (
   const id = unique();
   await page.goto('/register');
   await page.getByLabel('Your name').fill('E2E Owner');
-  await page.getByLabel('Agency name').fill(`E2E Agency ${id}`);
+  await page.getByLabel('Workspace name').fill(`E2E Agency ${id}`);
   await page.getByLabel('Work email').fill(`e2e-${id}@test.dev`);
   await page.getByLabel(/^Password/).fill('Password123!');
   await page.getByRole('button', { name: 'Create workspace' }).click();
