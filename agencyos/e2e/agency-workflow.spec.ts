@@ -3,7 +3,7 @@ import { login, unique } from './helpers';
 test('owner creates client, project, task and updates Kanban status', async ({ page }) => {
   const id = unique(); const clientName = `E2E Client ${id}`; const projectName = `E2E Project ${id}`; const taskTitle = `E2E Task ${id}`;
   await login(page, 'owner@agencyos.dev');
-  await expect(page.getByRole('heading', { name: /Good to see you/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Operations', level: 1 })).toBeVisible();
   await page.getByRole('link', { name: 'Clients', exact: true }).click();
   await page.getByRole('button', { name: 'New client' }).click();
   const clientDialog = page.getByRole('dialog');

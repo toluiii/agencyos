@@ -9,7 +9,7 @@ test('registration creates a workspace and unconfigured AI is explicit', async (
   await page.getByLabel(/^Password/).fill('Password123!');
   await page.getByRole('button', { name: 'Create workspace' }).click();
   await expect(page).toHaveURL(/\/dashboard/, { timeout: 20000 });
-  await expect(page.getByRole('heading', { name: /Good to see you/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Operations', level: 1 })).toBeVisible();
   await page.getByRole('link', { name: 'AI assistant' }).click();
   await expect(page.getByText('OpenAI is not configured')).toBeVisible();
   await page.getByRole('button', { name: 'Generate analysis' }).click();
